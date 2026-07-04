@@ -1,0 +1,61 @@
+{
+  "$schema": "./schema/index.schema.json",
+  "name": "_/allerion.io.vps\\_",
+  "host": {
+    "hostname": "allerion.io",
+    "provider": "TODO",
+    "region": "TODO",
+    "os": "TODO",
+    "ipv4": null,
+    "ipv6": null
+  },
+  "domains": [
+    {
+      "domain": "allerion.io",
+      "dns": "TODO",
+      "tls": "TODO",
+      "owner": "allerion-systems",
+      "status": "active",
+      "notes": "Primary domain."
+    }
+  ],
+  "services": [
+    {
+      "id": "example-web",
+      "kind": "web",
+      "runtime": "TODO",
+      "unit": "TODO",
+      "ports": [443],
+      "paths": ["/srv/example"],
+      "domains": ["allerion.io"],
+      "owner": "allerion-systems",
+      "status": "planned",
+      "notes": "Placeholder entry — replace with the first real service."
+    }
+  ],
+  "ports": [
+    { "port": 22, "protocol": "tcp", "service": "sshd", "exposure": "public", "status": "active" },
+    { "port": 443, "protocol": "tcp", "service": "example-web", "exposure": "public", "status": "planned" }
+  ],
+  "jobs": [
+    {
+      "id": "example-backup",
+      "schedule": "0 3 * * *",
+      "command": "TODO",
+      "owner": "allerion-systems",
+      "status": "planned",
+      "notes": "Placeholder nightly backup job."
+    }
+  ],
+  "backups": [
+    {
+      "id": "example-offsite",
+      "source": "/srv",
+      "destination": "TODO",
+      "schedule": "0 3 * * *",
+      "retention": "TODO",
+      "owner": "allerion-systems",
+      "status": "planned"
+    }
+  ]
+}
