@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>_/O.S\_ · Second Brain</title>
+<meta name="description" content="Your living knowledge operating system — a 2D/3D map of everything you know, that thinks with you." />
+<meta name="theme-color" content="#06080c" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="_/O.S\_" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+<!-- ============================================================
+     CDN libraries (pinned). 3d-force-graph bundles its own Three.js.
+     ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/force-graph@1.51.4/dist/force-graph.min.js"></script>
+
+<style>
+/* ============================================================
+   THEME VARIABLES — driven by JS (applyTheme writes :root vars)
+   ============================================================ */
+:root {
+  --bg:            #05070f;
+  --panel-bg:      rgba(12,16,28,0.92);
+  --panel-border:  rgba(255,255,255,0.08);
+  --text:          #eef1f8;
+  --text-dim:      #98a0b5;
+  --accent:        #2D5BFF;
+  --accent-soft:   rgba(45,91,255,0.18);
+  --chip-bg:       rgba(255,255,255,0.05);
+  --shadow:        0 8px 40px rgba(0,0,0,0.55);
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%; width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+/* ---------- Header ---------- */
+#header {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 18px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  z-index: 30;
+  backdrop-filter: blur(10px);
+}
+#brand { display: flex; align-items: center; gap: 10px; }
+#brand .logo {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), #0a1f6b);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+}
+#brand .title { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+#brand .title .dim { color: var(--text-dim); font-weight: 600; }
+#header .spacer { flex: 1; }
+#counts { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+#counts b { color: var(--text); font-weight: 700; }
+
+.hbtn {
+  background: var(--chip-bg); color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px; padding: 6px 12px; font-size: 12.5px;
+  cursor: pointer; font-weight: 600; transition: all .12s;
+  white-space: nowrap;
+}
+.hbtn:hover { border-color: var(--accent); }
+.hbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hbtn.warn  { color: var(--text-dim); }
+
+select.hbtn { appearance: none; padding-right: 24px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' stroke='%2398a0b5' stroke-width='1.5' fill='none'/></svg>");
+  background-repeat: no-repeat; background-position: right 8px center; }
+
+/* ---------- Main 3-column layout ---------- */
+#main { flex: 1 1 auto; position: relative; display: flex; min-height: 0; }
+
+/* Left: search + detail */
+#left {
+  flex: 0 0 320px; width: 320px;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  display: flex; flex-direction: column;
+  z-index: 20; backdrop-filter: blur(10px);
+}
+#searchWrap { padding: 12px; border-bottom: 1px solid var(--panel-border); }
+#search {
+  width: 100%; padding: 9px 11px; font-size: 13px;
+  background: var(--chip-bg); color: var(--text);
+  border: 1px solid var(--panel-border); border-radius: 8px; outline: none;
+}
+#search:focus { border-color: var(--accent); }
+#searchResults { margin-top: 8px; max-height: 180px; overflow-y: auto; }
+.sr-item {
+  padding: 7px 9px; font-size: 12.5px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; gap: 7px;
+}
+.sr-item:hover { background: var(--accent-soft); }
+.sr-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.sr-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-cat { margin-left: auto; font-size: 10px; color: var(--text-dim); flex: 0 0 auto; }
+
+#detail { flex: 1 1 auto; overflow-y: auto; padding: 14px; }
+#detailEmpty { color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+#detailEmpty .icon { font-size: 26px; display:block; margin-bottom: 8px; }
+.d-title { font-size: 16px; font-weight: 800; line-height: 1.25; margin: 2px 0 6px; }
+.d-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+  color: #fff; margin-bottom: 10px;
+}
+.d-meta { font-size: 11.5px; color: var(--text-dim); margin-bottom: 12px; }
+.d-meta code { background: var(--chip-bg); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+.d-section-h { font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-dim); font-weight: 700; margin: 14px 0 6px; }
+.d-body { font-size: 13px; line-height: 1.55; color: var(--text); white-space: pre-wrap; word-wrap: break-word; }
+.d-link {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12.5px;
+  border: 1px solid transparent;
+}
+.d-link:hover { background: var(--accent-soft); border-color: var(--panel-border); }
+.d-link .sr-dot { width: 8px; height: 8px; }
+.d-actions { display: flex; gap: 8px; margin: 12px 0 4px; }
+
+/* Center: canvas */
+#center { flex: 1 1 auto; position: relative; min-width: 0; }
+#graph { position: absolute; inset: 0; }
+#legend {
+  position: absolute; left: 12px; bottom: 12px; z-index: 10;
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  border-radius: 10px; padding: 9px 11px; max-width: 220px;
+  backdrop-filter: blur(8px); box-shadow: var(--shadow);
+}
+#legend .lh { font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-dim); font-weight: 700; margin-bottom: 7px; }
+.legend-row { display: flex; align-items: center; gap: 7px; font-size: 11.5px;
+  padding: 2px 0; cursor: pointer; user-select: none; }
+.legend-row .sr-dot { width: 10px; height: 10px; }
+.legend-row .lc { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+.legend-row.off { opacity: 0.35; }
+
+#loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 12px; z-index: 50; background: var(--bg);
+  font-size: 14px; color: var(--text-dim); text-align: center; padding: 24px;
+}
+#loading .spin {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--panel-border); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Right: controls */
+#right {
+  flex: 0 0 232px; width: 232px;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  overflow-y: auto; z-index: 20; backdrop-filter: blur(10px);
+  padding: 14px 13px;
+}
+.ctl-group { margin-bottom: 18px; }
+.ctl-h { font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-dim); font-weight: 700; margin-bottom: 9px; }
+.ctl-row { display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 8px; font-size: 12.5px; }
+.seg { display: flex; gap: 4px; }
+.seg .hbtn { padding: 5px 10px; flex: 1; text-align: center; }
+
+/* toggle switch */
+.switch { position: relative; width: 38px; height: 21px; flex: 0 0 auto; }
+.switch input { display: none; }
+.switch .track {
+  position: absolute; inset: 0; border-radius: 20px;
+  background: var(--chip-bg); border: 1px solid var(--panel-border); transition: .15s;
+}
+.switch .thumb {
+  position: absolute; top: 2px; left: 2px; width: 15px; height: 15px;
+  border-radius: 50%; background: var(--text-dim); transition: .15s;
+}
+.switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .track .thumb { left: 19px; background: #fff; }
+
+.cat-row { display: flex; align-items: center; gap: 8px; font-size: 12px;
+  padding: 3px 0; cursor: pointer; user-select: none; }
+.cat-row input { accent-color: var(--accent); width: 14px; height: 14px; }
+.cat-row .sr-dot { width: 9px; height: 9px; }
+.cat-row .cc { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+
+.worlds-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.worlds-row .hbtn { flex: 1; min-width: 60px; text-align: center; padding: 6px 4px; font-size: 11px; }
+
+/* responsive: collapse side panels on narrow screens */
+@media (max-width: 920px) {
+  #left  { flex-basis: 260px; width: 260px; }
+  #right { flex-basis: 190px; width: 190px; }
+}
+/* mobile drawer base (desktop: hidden) — declared BEFORE the media query so the mobile rule wins */
+#mobileBar { display: none; position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: max(16px, env(safe-area-inset-bottom)); z-index: 95; gap: 8px; }
+#mobileBar .hbtn { padding: 11px 18px; font-size: 13px; box-shadow: var(--shadow); background: var(--panel-bg); }
+#drawerScrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 85; }
+
+@media (max-width: 680px) {
+  #main { display: block; }
+  #center { position: absolute; inset: 0; width: 100%; }
+  #legend, #counts { display: none; }
+  #left, #right {
+    position: fixed; top: 0; bottom: 0; z-index: 90;
+    transition: transform .22s ease; box-shadow: var(--shadow);
+  }
+  #left  { left: 0;  width: min(86vw, 340px); flex-basis: auto; transform: translateX(-103%); }
+  #right { right: 0; width: min(82vw, 300px); flex-basis: auto; transform: translateX(103%); }
+  #left.open, #right.open { transform: translateX(0); }
+  #mobileBar { display: flex; }
+  #drawerScrim.show { display: block; }
+}
+/* ---------- iPhone safe areas (Dynamic Island + home bar) ---------- */
+#header { padding-top: max(10px, env(safe-area-inset-top)); padding-left: max(18px, env(safe-area-inset-left)); padding-right: max(18px, env(safe-area-inset-right)); }
+#legend { bottom: max(12px, env(safe-area-inset-bottom)); left: max(12px, env(safe-area-inset-left)); }
+#left  { padding-bottom: env(safe-area-inset-bottom); }
+#right { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 8px; }
+</style>
+</head>
+<body>
+<script id="brainData" type="application/json">{
+  "nodes": [
+    {
+      "id": "brain-core",
+      "label": "_/O.S\\_",
+      "category": "System",
+      "group": "core",
+      "detail": "The canonical brain. Every category orbits here.",
+      "val": 50
+    },
+    {
+      "id": "hub-Allerion",
+      "label": "Allerion",
+      "category": "Allerion",
+      "group": "hub",
+      "detail": "Allerion — category hub",
+      "val": 45
+    },
+    {
+      "id": "hub-Concept",
+      "label": "Concept",
+      "category": "Concept",
+      "group": "hub",
+      "detail": "Concept — category hub",
+      "val": 38
+    },
+    {
+      "id": "hub-Feedback",
+      "label": "Feedback",
+      "category": "Feedback",
+      "group": "hub",
+      "detail": "Feedback — category hub",
+      "val": 14
+    },
+    {
+      "id": "hub-Note",
+      "label": "Note",
+      "category": "Note",
+      "group": "hub",
+      "detail": "Note — category hub",
+      "val": 12
+    },
+    {
+      "id": "hub-People",
+      "label": "People",
+      "category": "People",
+      "group": "hub",
+      "detail": "People — category hub",
+      "val": 12
+    },
+    {
+      "id": "hub-Personal",
+      "label": "Personal",
+      "category": "Personal",
+      "group": "hub",
+      "detail": "Personal — category hub",
+      "val": 63
+    },
+    {
+      "id": "hub-Project",
+      "label": "Project",
+      "category": "Project",
+      "group": "hub",
+      "detail": "Project — category hub",
+      "val": 33
+    },
+    {
+      "id": "hub-RB",
+      "label": "RB",
+      "category": "RB",
+      "group": "hub",
+      "detail": "RB — category hub",
+      "val": 52
+    },
+    {
+      "id": "hub-Reference",
+      "label": "Reference",
+      "category": "Reference",
+      "group": "hub",
+      "detail": "Reference — category hub",
+      "val": 13
+    },
+    {
+      "id": "hub-Source",
+      "label": "Source",
+      "category": "Source",
+      "group": "hub",
+      "detail": "Source — category hub",
+      "val": 129
+    },
+    {
+      "id": "hub-System",
+      "label": "System",
+      "category": "System",
+      "group": "hub",
+      "detail": "System — category hub",
+      "val": 12
+    },
+    {
+      "id": "sample-note",
+      "label": "sample_note",
+      "detail": "Example node — replace brainData with your own graph via build.mjs",
+      "category": "Note",
+      "group": "memory",
+      "val": 6
+    }
+  ],
+  "links": [
+    {
+      "source": "hub-Allerion",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Concept",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Feedback",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Note",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-People",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Personal",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Project",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-RB",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Reference",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-Source",
+      "target": "brain-core"
+    },
+    {
+      "source": "hub-System",
+      "target": "brain-core"
+    },
+    {
+      "source": "sample-note",
+      "target": "hub-Note"
+    }
+  ]
+}</script>
+<script>(function(){var raw=document.getElementById('brainData').textContent;var of=window.fetch?window.fetch.bind(window):null;window.fetch=function(u,o){var s=(typeof u==='string')?u:(u&&u.url)||'';if(s.indexOf('brain-graph')!==-1||s.indexOf('os/brain/graph')!==-1){return Promise.resolve(new Response(raw,{status:200,headers:{'Content-Type':'application/json'}}));}return of?of(u,o):Promise.reject(new Error('offline-artifact'));};})();</script>
+
+<div id="app">
+
+  <!-- ================= HEADER ================= -->
+  <div id="header">
+    <div id="brand">
+      <div class="logo" id="brandLogo">🧠</div>
+      <div class="title" id="brandTitle">_/O.S\_ <span class="dim">· Second Brain</span></div>
+    </div>
+    <div class="spacer"></div>
+    <div id="counts"><b id="nodeCount">0</b> nodes · <b id="linkCount">0</b> links</div>
+    <button class="hbtn" id="modeBtn" title="Toggle 2D / 3D">3D</button>
+    <button class="hbtn" id="resetBtn" title="Reset view">Reset</button>
+    <select class="hbtn" id="themeSel" title="Theme">
+      <option value="space">Deep Space</option>
+      <option value="allerion">Allerion</option>
+      <option value="purple">Purple</option>
+    </select>
+  </div>
+
+  <!-- ================= MAIN ================= -->
+  <div id="main">
+
+    <!-- LEFT: search + detail -->
+    <div id="left">
+      <div id="searchWrap">
+        <input id="search" type="text" placeholder="Search the brain…  (Lodges, reputation, Allerion…)" autocomplete="off" />
+        <div id="searchResults"></div>
+      </div>
+      <div id="detail">
+        <div id="detailEmpty">
+          <span class="icon">🧠</span>
+          Click any node to inspect it — you'll see its category, summary, source path,
+          and every note it links to. Or search above.
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: graph -->
+    <div id="center">
+      <div id="graph"></div>
+      <div id="legend">
+        <div class="lh">Categories — click to toggle</div>
+        <div id="legendBody"></div>
+      </div>
+      <div id="loading">
+        <div class="spin"></div>
+        <div id="loadingMsg">Loading the second brain…</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls -->
+    <div id="right">
+      <div class="ctl-group">
+        <div class="ctl-h">Worlds / Vaults</div>
+        <div class="worlds-row" id="worldsRow"></div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="ctl-h">Highlight depth</div>
+        <div class="seg" id="depthSeg">
+          <button class="hbtn active" data-depth="1">1</button>
+          <button class="hbtn" data-depth="2">2</button>
+          <button class="hbtn" data-depth="3">3</button>
+        </div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="ctl-h">Display</div>
+        <div class="ctl-row"><span>Particles</span>
+          <label class="switch"><input type="checkbox" id="tgPart" checked><span class="track"><span class="thumb"></span></span></label></div>
+        <div class="ctl-row"><span>Node labels</span>
+          <label class="switch"><input type="checkbox" id="tgLabels"><span class="track"><span class="thumb"></span></span></label></div>
+        <div class="ctl-row"><span>Curved links</span>
+          <label class="switch"><input type="checkbox" id="tgCurve"><span class="track"><span class="thumb"></span></span></label></div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="ctl-h">Categories</div>
+        <div id="catList"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- mobile drawer controls (phones only) -->
+<div id="drawerScrim" onclick="cbCloseDrawers()"></div>
+<div id="mobileBar">
+  <button class="hbtn" onclick="cbToggleDrawer('left')">Search</button>
+  <button class="hbtn" onclick="cbToggleDrawer('right')">Filters</button>
+</div>
+<script>
+function cbToggleDrawer(side){
+  var L=document.getElementById('left'), R=document.getElementById('right');
+  var el = side==='left'? L : R, other = side==='left'? R : L;
+  other.classList.remove('open');
+  el.classList.toggle('open');
+  document.getElementById('drawerScrim').classList.toggle('show',
+    L.classList.contains('open')||R.classList.contains('open'));
+}
+function cbCloseDrawers(){
+  document.getElementById('left').classList.remove('open');
+  document.getElementById('right').classList.remove('open');
+  document.getElementById('drawerScrim').classList.remove('show');
+}
+</script>
+
+<script>
+/* ============================================================================
+   CONFIG — all white-label brand strings live here. Swap for any client.
+   ============================================================================ */
+const CONFIG = {
+  productName: "_/O.S\\_",
+  subtitle:    "· Second Brain",
+  logoText:    "◆",
+  dataUrl:     "./brain-graph.json",   // overridden at boot: localhost vs domain
+  livePollMinutes: 10,                 // re-fetch the graph this often (live artifact)
+  defaultTheme:"allerion",  // Allerion brand default (light/royal-blue). also: "space" | "purple"
+  // Worlds = high-level vault toggles mapped onto category sets (IP-wall).
+  worlds: {
+    "R&B":      ["RB", "Project", "People"],
+    "Allerion": ["Allerion", "Source", "Concept"],
+    "Personal": ["Personal", "Reference"],
+    "System":   ["System", "Feedback", "Note"]
+  }
+};
+
+/* ----------------------------------------------------------------------------
+   THEMES — background + per-category color ramp.  Allerion = light/royal-blue.
+   ---------------------------------------------------------------------------- */
+const BASE_RAMP_DARK = {
+  Allerion:'#2D5BFF', Source:'#22d3ee', Concept:'#a78bfa', RB:'#f97316',
+  Project:'#facc15',  People:'#34d399',  Personal:'#f472b6', Reference:'#60a5fa',
+  System:'#e879f9',   Feedback:'#fb7185', Note:'#94a3b8', _default:'#8b93a7'
+};
+const THEMES = {
+  space: {
+    label:'Deep Space',
+    vars:{ '--bg':'#05070f', '--panel-bg':'rgba(12,16,28,0.92)', '--panel-border':'rgba(255,255,255,0.08)',
+      '--text':'#eef1f8', '--text-dim':'#98a0b5', '--accent':'#2D5BFF', '--accent-soft':'rgba(45,91,255,0.18)',
+      '--chip-bg':'rgba(255,255,255,0.05)' },
+    graphBg:'#05070f', linkBase:'rgba(160,180,255,0.22)', aurora:true,
+    ramp: BASE_RAMP_DARK
+  },
+  purple: {
+    label:'Purple',
+    vars:{ '--bg':'#120a24', '--panel-bg':'rgba(28,16,52,0.92)', '--panel-border':'rgba(190,150,255,0.14)',
+      '--text':'#f3eefe', '--text-dim':'#b6a3d8', '--accent':'#a855f7', '--accent-soft':'rgba(168,85,247,0.22)',
+      '--chip-bg':'rgba(255,255,255,0.06)' },
+    graphBg:'#120a24', linkBase:'rgba(200,160,255,0.25)', aurora:true,
+    ramp: { ...BASE_RAMP_DARK, Allerion:'#c084fc', Source:'#67e8f9', RB:'#fb923c', Project:'#fde047', _default:'#b9a9e0' }
+  },
+  allerion: {
+    label:'Allerion',
+    vars:{ '--bg':'#f5f6fa', '--panel-bg':'rgba(255,255,255,0.94)', '--panel-border':'rgba(15,23,42,0.10)',
+      '--text':'#0b1220', '--text-dim':'#5b6478', '--accent':'#2D5BFF', '--accent-soft':'rgba(45,91,255,0.12)',
+      '--chip-bg':'rgba(15,23,42,0.04)' },
+    graphBg:'#f5f6fa', linkBase:'rgba(15,23,42,0.16)', aurora:false,
+    ramp: { Allerion:'#2D5BFF', Source:'#0891b2', Concept:'#7c3aed', RB:'#ea580c',
+      Project:'#ca8a04', People:'#059669', Personal:'#db2777', Reference:'#2563eb',
+      System:'#c026d3', Feedback:'#e11d48', Note:'#475569', _default:'#64748b' }
+  }
+};
+
+/* ----------------------------------------------------------------------------
+   Per-type icons (used in SpriteText labels, detail panel, legend dots).
+   ---------------------------------------------------------------------------- */
+const ICONS = {
+  Allerion:'🚀', Source:'📄', Concept:'💡', RB:'🏗️', Project:'📐', People:'👤',
+  Personal:'🏠', Reference:'📌', System:'⚙️', Feedback:'⭐', Note:'🗒️', _default:'•'
+};
+
+/* ============================================================================
+   STATE
+   ============================================================================ */
+let DATA = { nodes: [], links: [] };       // master, immutable-ish
+let Graph = null;
+let IS_3D = true;
+let currentTheme = CONFIG.defaultTheme;
+let activeRamp = THEMES[currentTheme].ramp;
+let HOP_DEPTH = 1;
+let particlesOn = true;
+let labelsOn = false;
+let curved = false;
+
+const visibleCategories = new Set();        // which categories are shown
+const highlightNodes = new Set();
+const highlightLinks = new Set();
+let selectedNode = null;
+let hoverNode = null;
+
+const colorFor = n => activeRamp[n.category] || activeRamp._default;
+const DIM_NODE = () => (currentTheme === 'allerion' ? 'rgba(120,130,150,0.16)' : 'rgba(120,130,160,0.10)');
+const DIM_LINK = () => (currentTheme === 'allerion' ? 'rgba(120,130,150,0.07)' : 'rgba(120,130,160,0.04)');
+
+/* ============================================================================
+   NEIGHBOR PRECOMPUTE  (resolves ids OR object refs)
+   ============================================================================ */
+function buildNeighbors(data) {
+  const byId = new Map(data.nodes.map(n => [n.id, n]));
+  data.nodes.forEach(n => { n.neighbors = new Set(); n._links = new Set(); });
+  data.links.forEach(l => {
+    const s = typeof l.source === 'object' ? l.source : byId.get(l.source);
+    const t = typeof l.target === 'object' ? l.target : byId.get(l.target);
+    if (!s || !t) return;
+    s.neighbors.add(t); t.neighbors.add(s);
+    s._links.add(l);     t._links.add(l);
+  });
+}
+
+/* BFS to depth N over precomputed neighbor sets */
+function collectWithinHops(start, maxHops) {
+  const nodes = new Set([start]);
+  const links = new Set();
+  let frontier = [start];
+  for (let hop = 0; hop < maxHops; hop++) {
+    const next = [];
+    frontier.forEach(n => {
+      (n._links || []).forEach(l => links.add(l));
+      (n.neighbors || []).forEach(nb => { if (!nodes.has(nb)) { nodes.add(nb); next.push(nb); } });
+    });
+    frontier = next;
+    if (!frontier.length) break;
+  }
+  return { nodes, links };
+}
+
+/* ============================================================================
+   FILTERED DATA  (category/world visibility)
+   ============================================================================ */
+function currentFilteredData() {
+  const nodes = DATA.nodes.filter(n => visibleCategories.has(n.category));
+  const ids = new Set(nodes.map(n => n.id));
+  const links = DATA.links.filter(l => {
+    const s = typeof l.source === 'object' ? l.source.id : l.source;
+    const t = typeof l.target === 'object' ? l.target.id : l.target;
+    return ids.has(s) && ids.has(t);
+  });
+  return { nodes, links };
+}
+
+function updateCounts(d) {
+  document.getElementById('nodeCount').textContent = d.nodes.length;
+  document.getElementById('linkCount').textContent = d.links.length;
+}
+
+/* ============================================================================
+   HIGHLIGHT REFRESH
+   ============================================================================ */
+function refreshHighlight() {
+  if (!Graph) return;
+  Graph.nodeColor(Graph.nodeColor())
+       .linkColor(Graph.linkColor())
+       .linkWidth(Graph.linkWidth())
+       .linkDirectionalParticles(Graph.linkDirectionalParticles());
+}
+
+function applyHighlightForNode(node) {
+  highlightNodes.clear();
+  highlightLinks.clear();
+  selectedNode = node || null;
+  if (node) {
+    const { nodes, links } = collectWithinHops(node, HOP_DEPTH);
+    nodes.forEach(n => highlightNodes.add(n));
+    links.forEach(l => highlightLinks.add(l));
+  }
+  refreshHighlight();
+}
+
+function clearHighlight() {
+  highlightNodes.clear(); highlightLinks.clear(); selectedNode = null; hoverNode = null;
+  refreshHighlight();
+}
+
+/* ============================================================================
+   DETAIL PANEL
+   ============================================================================ */
+function showDetail(node) {
+  const el = document.getElementById('detail');
+  if (!node) {
+    el.innerHTML = '<div id="detailEmpty"><span class="icon">🧠</span>Click any node to inspect it.</div>';
+    return;
+  }
+  const color = colorFor(node);
+  const icon = ICONS[node.category] || ICONS._default;
+  const neigh = [...(node.neighbors || [])].sort((a, b) => (a.label || '').localeCompare(b.label || ''));
+
+  let html = '';
+  html += `<div class="d-badge" style="background:${color}">${icon} ${esc(node.category)}</div>`;
+  html += `<div class="d-title">${esc(node.label || node.id)}</div>`;
+  const metaBits = [];
+  if (node.group)  metaBits.push(`group: <code>${esc(node.group)}</code>`);
+  metaBits.push(`links: <code>${neigh.length}</code>`);
+  html += `<div class="d-meta">${metaBits.join(' &nbsp;·&nbsp; ')}</div>`;
+  if (node.path) html += `<div class="d-meta">source: <code>${esc(node.path)}</code></div>`;
+
+  html += `<div class="d-actions">`;
+  html += `<button class="hbtn" id="focusBtn">Focus</button>`;
+  if (neigh.length) html += `<button class="hbtn" id="expandBtn">Highlight neighborhood</button>`;
+  html += `</div>`;
+
+  if (node.detail) {
+    html += `<div class="d-section-h">Summary</div><div class="d-body">${esc(node.detail)}</div>`;
+  }
+
+  html += `<div class="d-section-h">Linked notes (${neigh.length})</div>`;
+  if (neigh.length) {
+    neigh.forEach(nb => {
+      const c = colorFor(nb);
+      html += `<div class="d-link" data-id="${esc(nb.id)}">
+        <span class="sr-dot" style="background:${c}"></span>
+        <span class="sr-label">${esc(nb.label || nb.id)}</span>
+        <span class="sr-cat">${esc(nb.category)}</span></div>`;
+    });
+  } else {
+    html += `<div class="d-meta">No outgoing links.</div>`;
+  }
+
+  el.innerHTML = html;
+
+  // wire link clicks -> navigate
+  el.querySelectorAll('.d-link').forEach(div => {
+    div.addEventListener('click', () => {
+      const target = DATA.nodes.find(n => n.id === div.dataset.id);
+      if (target) selectNode(target, true);
+    });
+  });
+  const fb = document.getElementById('focusBtn');
+  if (fb) fb.addEventListener('click', () => focusNode(node));
+  const eb = document.getElementById('expandBtn');
+  if (eb) eb.addEventListener('click', () => { applyHighlightForNode(node); });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* Central "select a node" — used by click, search, link navigation */
+function selectNode(node, doFocus) {
+  applyHighlightForNode(node);
+  showDetail(node);
+  if (doFocus) focusNode(node);
+}
+
+/* ============================================================================
+   FOCUS / CAMERA
+   ============================================================================ */
+function focusNode(node) {
+  if (!node || !Graph) return;
+  if (IS_3D) {
+    if (node.x == null) return; // not yet laid out
+    const distance = 120;
+    const hyp = Math.hypot(node.x, node.y, node.z) || 1;
+    const r = 1 + distance / hyp;
+    Graph.cameraPosition({ x: node.x * r, y: node.y * r, z: node.z * r }, node, 1400);
+  } else {
+    if (node.x == null) return;
+    Graph.centerAt(node.x, node.y, 700);
+    Graph.zoom(5, 700);
+  }
+}
+
+/* ============================================================================
+   SEARCH
+   ============================================================================ */
+function runSearch(q) {
+  const box = document.getElementById('searchResults');
+  q = q.trim().toLowerCase();
+  if (!q) { box.innerHTML = ''; return; }
+  const matches = DATA.nodes.filter(n =>
+    (n.label || '').toLowerCase().includes(q) ||
+    (n.detail || '').toLowerCase().includes(q) ||
+    (n.id || '').toLowerCase().includes(q)
+  ).slice(0, 40);
+
+  if (!matches.length) { box.innerHTML = '<div class="sr-item" style="color:var(--text-dim)">No matches.</div>'; return; }
+
+  box.innerHTML = matches.map(n =>
+    `<div class="sr-item" data-id="${esc(n.id)}">
+       <span class="sr-dot" style="background:${colorFor(n)}"></span>
+       <span class="sr-label">${esc(n.label || n.id)}</span>
+       <span class="sr-cat">${esc(n.category)}</span>
+     </div>`).join('');
+
+  box.querySelectorAll('.sr-item').forEach(div => {
+    div.addEventListener('click', () => {
+      const node = DATA.nodes.find(n => n.id === div.dataset.id);
+      if (node) {
+        // ensure its category is visible so it can be focused/highlighted
+        if (!visibleCategories.has(node.category)) {
+          visibleCategories.add(node.category);
+          syncCategoryUI();
+          rebuildData();
+        }
+        selectNode(node, true);
+      }
+    });
+  });
+
+  // auto-highlight the single top match (the "proof of context" move)
+  if (matches[0]) {
+    const top = matches[0];
+    if (visibleCategories.has(top.category)) applyHighlightForNode(top);
+  }
+}
+
+/* ============================================================================
+   GRAPH WIRING (shared between 2D and 3D)
+   ============================================================================ */
+function nodeColorCb(n) {
+  if (hoverNode && hoverNode !== n && !(hoverNode.neighbors && hoverNode.neighbors.has(n)))
+    return DIM_NODE();
+  if (highlightNodes.size === 0) return colorFor(n);
+  if (n === selectedNode) return (currentTheme === 'allerion' ? '#0b1220' : '#ffffff');
+  if (highlightNodes.has(n)) return colorFor(n);
+  return DIM_NODE();
+}
+function linkColorCb(l) {
+  const base = THEMES[currentTheme].linkBase;
+  if (highlightLinks.size === 0) return base;
+  return highlightLinks.has(l) ? (currentTheme === 'allerion' ? '#2D5BFF' : '#ffffff') : DIM_LINK();
+}
+function linkWidthCb(l) { return highlightLinks.has(l) ? 2.2 : 0.6; }
+function particleCb(l) {
+  if (!particlesOn) return 0;
+  if (highlightLinks.size === 0) return 0;
+  return highlightLinks.has(l) ? 4 : 0;
+}
+
+function wireInteractions(g) {
+  g.onNodeClick(node => { selectNode(node, true); })
+   .onBackgroundClick(() => { clearHighlight(); showDetail(null); })
+   .onNodeHover(node => {
+      hoverNode = node || null;
+      document.body.style.cursor = node ? 'pointer' : 'default';
+      refreshHighlight();
+   });
+}
+
+/* SpriteText labels for 3D */
+function apply3DLabels(g) {
+  g.nodeThreeObjectExtend(true).nodeThreeObject(n => {
+    if (!labelsOn || typeof SpriteText === 'undefined') return null;
+    const s = new SpriteText(n.label || n.id);
+    s.color = currentTheme === 'allerion' ? '#0b1220' : '#ffffff';
+    s.textHeight = 3.2;
+    s.backgroundColor = false;
+    s.position.set(0, (Math.cbrt(n.val || 1) * 4) + 4, 0);
+    return s;
+  });
+}
+
+/* Hand-drawn 2D node + zoom-gated labels */
+function apply2DCanvas(g) {
+  g.nodeCanvasObjectMode(() => 'replace');
+  g.nodeCanvasObject((n, ctx, scale) => {
+    const r = Math.cbrt(n.val || 1) * 3 + 1.5;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = nodeColorCb(n);
+    ctx.fill();
+    if (n === selectedNode) {
+      ctx.lineWidth = 2 / scale;
+      ctx.strokeStyle = THEMES[currentTheme].vars['--accent'];
+      ctx.stroke();
+    }
+    if (labelsOn && scale > 1.3) {
+      ctx.font = `${11 / scale}px -apple-system, sans-serif`;
+      ctx.fillStyle = currentTheme === 'allerion' ? '#0b1220' : '#e8ecf6';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(n.label || n.id, n.x, n.y + r + 1);
+    }
+  });
+  g.nodePointerAreaPaint((n, color, ctx) => {
+    const r = Math.cbrt(n.val || 1) * 3 + 4;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill();
+  });
+}
+
+/* (Re)build the whole renderer in the same container */
+function buildGraph() {
+  const elem = document.getElementById('graph');
+  if (Graph && typeof Graph._destructor === 'function') Graph._destructor();
+  elem.innerHTML = '';
+
+  const data = currentFilteredData();
+  buildNeighbors(data);
+  // re-establish selection reference after rebuild
+  if (selectedNode) {
+    selectedNode = data.nodes.find(n => n.id === selectedNode.id) || null;
+  }
+  highlightNodes.clear(); highlightLinks.clear();
+  if (selectedNode) {
+    const { nodes, links } = collectWithinHops(selectedNode, HOP_DEPTH);
+    nodes.forEach(n => highlightNodes.add(n));
+    links.forEach(l => highlightLinks.add(l));
+  }
+
+  Graph = IS_3D ? new ForceGraph3D(elem) : new ForceGraph(elem);
+
+  Graph.graphData(data)
+    .nodeVal(n => n.val || 1)
+    .nodeColor(nodeColorCb)
+    .nodeLabel(IS_3D
+      ? (n => `<div style="font:600 12px -apple-system;color:#fff;background:rgba(8,10,18,.9);padding:6px 9px;border-radius:6px;max-width:260px">
+                 ${(ICONS[n.category]||'')} <b>${esc(n.label||n.id)}</b><br>
+                 <span style="opacity:.7;font-size:10px">${esc(n.category)}</span></div>`)
+      : (n => `${ICONS[n.category]||''} ${n.label || n.id}  ·  ${n.category}`))
+    .linkColor(linkColorCb)
+    .linkWidth(linkWidthCb)
+    .linkDirectionalParticles(particleCb)
+    .linkDirectionalParticleSpeed(0.006)
+    .linkDirectionalParticleWidth(2)
+    .linkCurvature(curved ? 0.25 : 0)
+    .backgroundColor(THEMES[currentTheme].graphBg);
+
+  if (IS_3D) {
+    apply3DLabels(Graph);
+    Graph.nodeOpacity(0.92).linkOpacity(0.5);
+  } else {
+    apply2DCanvas(Graph);
+    Graph.autoPauseRedraw(false);
+  }
+
+  wireInteractions(Graph);
+  updateCounts(data);
+
+  // fit on first settle
+  Graph.onEngineStop(() => {
+    try { IS_3D ? Graph.zoomToFit(600, 60) : Graph.zoomToFit(600, 40); } catch (e) {}
+    Graph.onEngineStop(() => {}); // only once
+  });
+
+  if (selectedNode) showDetail(selectedNode);
+}
+
+/* lightweight rebuild without losing camera when just filtering (3D keeps engine warm) */
+function rebuildData() {
+  const data = currentFilteredData();
+  buildNeighbors(data);
+  if (selectedNode) selectedNode = data.nodes.find(n => n.id === selectedNode.id) || null;
+  highlightNodes.clear(); highlightLinks.clear();
+  if (selectedNode) {
+    const { nodes, links } = collectWithinHops(selectedNode, HOP_DEPTH);
+    nodes.forEach(n => highlightNodes.add(n));
+    links.forEach(l => highlightLinks.add(l));
+  }
+  Graph.graphData(data);
+  updateCounts(data);
+  refreshHighlight();
+}
+
+/* ============================================================================
+   THEME
+   ============================================================================ */
+function applyTheme(name) {
+  currentTheme = name;
+  const t = THEMES[name];
+  activeRamp = t.ramp;
+  const root = document.documentElement;
+  Object.entries(t.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+
+  // aurora vs flat background on the page behind the canvas
+  document.body.style.background = t.aurora
+    ? `radial-gradient(900px 600px at 78% 12%, ${withAlpha(t.vars['--accent'],0.16)}, transparent 60%),
+       radial-gradient(800px 700px at 12% 88%, ${withAlpha(name==='purple'?'#7c3aed':'#0ea5e9',0.14)}, transparent 60%),
+       ${t.vars['--bg']}`
+    : t.vars['--bg'];
+
+  if (Graph) {
+    Graph.backgroundColor(t.graphBg);
+    if (IS_3D) apply3DLabels(Graph);
+    refreshHighlight();
+  }
+  buildLegend();
+  buildCategoryList();
+  if (selectedNode) showDetail(selectedNode);
+}
+function withAlpha(hex, a) {
+  const h = hex.replace('#',''); const n = parseInt(h,16);
+  const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ============================================================================
+   LEGEND + CATEGORY UI
+   ============================================================================ */
+let CATS = [];
+function computeCats() {
+  const counts = {};
+  DATA.nodes.forEach(n => { counts[n.category] = (counts[n.category]||0)+1; });
+  CATS = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(c => ({ cat:c, count:counts[c] }));
+}
+function buildLegend() {
+  const body = document.getElementById('legendBody');
+  body.innerHTML = CATS.map(({cat,count}) => {
+    const off = visibleCategories.has(cat) ? '' : 'off';
+    return `<div class="legend-row ${off}" data-cat="${esc(cat)}">
+      <span class="sr-dot" style="background:${activeRamp[cat]||activeRamp._default}"></span>
+      <span>${ICONS[cat]||''} ${esc(cat)}</span>
+      <span class="lc">${count}</span></div>`;
+  }).join('');
+  body.querySelectorAll('.legend-row').forEach(row => {
+    row.addEventListener('click', () => toggleCategory(row.dataset.cat));
+  });
+}
+function buildCategoryList() {
+  const list = document.getElementById('catList');
+  list.innerHTML = CATS.map(({cat,count}) =>
+    `<label class="cat-row">
+       <input type="checkbox" data-cat="${esc(cat)}" ${visibleCategories.has(cat)?'checked':''}>
+       <span class="sr-dot" style="background:${activeRamp[cat]||activeRamp._default}"></span>
+       <span>${esc(cat)}</span><span class="cc">${count}</span>
+     </label>`).join('');
+  list.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => toggleCategory(inp.dataset.cat));
+  });
+}
+function syncCategoryUI() { buildLegend(); buildCategoryList(); }
+
+function toggleCategory(cat) {
+  if (visibleCategories.has(cat)) visibleCategories.delete(cat);
+  else visibleCategories.add(cat);
+  syncCategoryUI();
+  rebuildData();
+}
+
+/* Worlds = bulk category toggles. Clicking sets the view to exactly that world. */
+function buildWorlds() {
+  const row = document.getElementById('worldsRow');
+  const names = ['All', ...Object.keys(CONFIG.worlds)];
+  row.innerHTML = names.map(n => `<button class="hbtn" data-world="${esc(n)}">${esc(n)}</button>`).join('');
+  row.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      const w = b.dataset.world;
+      visibleCategories.clear();
+      if (w === 'All') CATS.forEach(c => visibleCategories.add(c.cat));
+      else (CONFIG.worlds[w] || []).forEach(c => visibleCategories.add(c));
+      // make sure unmapped cats are visible under "All" only
+      syncCategoryUI();
+      rebuildData();
+      markActiveWorld(w);
+    });
+  });
+}
+function markActiveWorld(w) {
+  document.querySelectorAll('#worldsRow button').forEach(b =>
+    b.classList.toggle('active', b.dataset.world === w));
+}
+
+/* ============================================================================
+   CONTROLS WIRING
+   ============================================================================ */
+function wireControls() {
+  document.getElementById('search').addEventListener('input', e => runSearch(e.target.value));
+
+  document.getElementById('modeBtn').addEventListener('click', () => {
+    IS_3D = !IS_3D;
+    document.getElementById('modeBtn').textContent = IS_3D ? '3D' : '2D';
+    buildGraph();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    clearHighlight(); showDetail(null);
+    document.getElementById('search').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+    if (Graph) { try { Graph.zoomToFit(700, IS_3D?60:40); } catch(e){} }
+  });
+
+  document.getElementById('themeSel').addEventListener('change', e => applyTheme(e.target.value));
+
+  document.querySelectorAll('#depthSeg .hbtn').forEach(b => {
+    b.addEventListener('click', () => {
+      HOP_DEPTH = +b.dataset.depth;
+      document.querySelectorAll('#depthSeg .hbtn').forEach(x => x.classList.toggle('active', x===b));
+      if (selectedNode) applyHighlightForNode(selectedNode);
+    });
+  });
+
+  document.getElementById('tgPart').addEventListener('change', e => {
+    particlesOn = e.target.checked;
+    if (Graph) Graph.linkDirectionalParticles(particleCb);
+    refreshHighlight();
+  });
+  document.getElementById('tgLabels').addEventListener('change', e => {
+    labelsOn = e.target.checked;
+    if (!Graph) return;
+    if (IS_3D) apply3DLabels(Graph);
+    else Graph.nodeCanvasObject(Graph.nodeCanvasObject()); // poke 2D redraw
+  });
+  document.getElementById('tgCurve').addEventListener('change', e => {
+    curved = e.target.checked;
+    if (Graph) Graph.linkCurvature(curved ? 0.25 : 0);
+  });
+}
+
+/* ============================================================================
+   BRAND
+   ============================================================================ */
+function applyBrand() {
+  document.getElementById('brandLogo').textContent = CONFIG.logoText;
+  document.getElementById('brandTitle').innerHTML =
+    `${esc(CONFIG.productName)} <span class="dim">${esc(CONFIG.subtitle)}</span>`;
+  document.title = `${CONFIG.productName} ${CONFIG.subtitle}`;
+}
+
+/* ============================================================================
+   LIVE AUTO-REFRESH — re-fetch the graph on an interval; preserve view + toggles
+   ============================================================================ */
+let __sig = '';
+async function refreshData(){
+  try{
+    const sep = CONFIG.dataUrl.includes('?') ? '&' : '?';
+    const res = await fetch(CONFIG.dataUrl + sep + 't=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) return;
+    const raw = await res.json();
+    if(!raw || !Array.isArray(raw.nodes) || !Array.isArray(raw.links)) return;
+    const sig = raw.nodes.length + '/' + raw.links.length;
+    if(sig === __sig) return;               // nothing changed since last poll
+    __sig = sig;
+    raw.nodes.forEach(n=>{ if(n.label==null)n.label=String(n.id); if(n.category==null)n.category='Note'; if(n.val==null)n.val=1; });
+    const known = new Set(CATS.map(c=>c.cat));
+    DATA = raw;
+    computeCats();
+    CATS.forEach(c=>{ if(!known.has(c.cat)) visibleCategories.add(c.cat); });  // show only NEW categories; keep user's hides
+    syncCategoryUI();
+    rebuildData();
+    const el=document.getElementById('counts'); if(el){ el.style.color='var(--accent)'; setTimeout(()=>{el.style.color='';},1500); }
+  }catch(e){}
+}
+function startLive(){
+  __sig = DATA.nodes.length + '/' + DATA.links.length;
+  setInterval(refreshData, (CONFIG.livePollMinutes||10)*60*1000);
+}
+
+/* ============================================================================
+   BOOT
+   ============================================================================ */
+async function boot() {
+  // localhost serves the file next to it; the domain serves JSON via a gated route
+  CONFIG.dataUrl = (location.hostname==='localhost'||location.hostname==='127.0.0.1')
+    ? './brain-graph.json' : '/os/brain/graph';
+  applyBrand();
+  wireControls();
+  document.getElementById('themeSel').value = currentTheme;
+
+  let raw;
+  try {
+    const res = await fetch(CONFIG.dataUrl, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    raw = await res.json();
+  } catch (err) {
+    document.getElementById('loading').innerHTML =
+      `<div style="font-size:30px">🧠</div>
+       <div style="max-width:380px;line-height:1.6">
+         <b>Could not load <code>${esc(CONFIG.dataUrl)}</code>.</b><br><br>
+         ${esc(String(err.message || err))}<br><br>
+         Serve this folder over HTTP so the browser can fetch the JSON:<br>
+         <code style="background:rgba(255,255,255,.07);padding:3px 7px;border-radius:5px;display:inline-block;margin-top:6px">
+         python3 -m http.server 8848</code><br>
+         then open <code>http://localhost:8848/</code>
+       </div>`;
+    return;
+  }
+
+  if (!raw || !Array.isArray(raw.nodes) || !Array.isArray(raw.links)) {
+    document.getElementById('loading').innerHTML =
+      `<div style="font-size:30px">⚠️</div><div>JSON loaded but missing <code>nodes</code> / <code>links</code> arrays.</div>`;
+    return;
+  }
+
+  // normalize: ensure label/category/val exist
+  raw.nodes.forEach(n => {
+    if (n.label == null) n.label = String(n.id);
+    if (n.category == null) n.category = 'Note';
+    if (n.val == null) n.val = 1;
+  });
+  DATA = raw;
+
+  computeCats();
+  CATS.forEach(c => visibleCategories.add(c.cat));   // all on initially
+
+  applyTheme(currentTheme);   // sets vars + builds legend/cat list
+  buildWorlds();
+  markActiveWorld('All');
+
+  buildGraph();
+  document.getElementById('loading').style.display = 'none';
+  startLive();
+}
+
+boot();
+</script>
+
+<script>
+/* ===== Notes & Mind-Map — free capture layer packed into the brain ===== */
+(function(){
+  const LS='joeyos_notes';
+  const loadN=()=>{try{return JSON.parse(localStorage.getItem(LS)||'[]')}catch(e){return[]}};
+  const saveN=a=>localStorage.setItem(LS,JSON.stringify(a));
+  let notes=loadN(), curId=null;
+
+  const style=document.createElement('style');
+  style.textContent=`
+  #ntPanel{position:fixed;top:0;right:0;height:100%;width:360px;max-width:92vw;background:var(--panel-bg);border-left:1px solid var(--panel-border);box-shadow:var(--shadow);z-index:80;display:none;flex-direction:column;backdrop-filter:blur(10px)}
+  #ntPanel.open{display:flex}
+  #ntHead{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--panel-border)}
+  #ntHead .t{font-weight:800;font-size:15px;color:var(--text)}
+  #ntClose{cursor:pointer;color:var(--text-dim);font-size:20px;background:none;border:none;line-height:1}
+  #ntBody{padding:14px 16px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px}
+  #ntTitle{width:100%;padding:9px 11px;font-size:14px;font-weight:600;background:var(--chip-bg);color:var(--text);border:1px solid var(--panel-border);border-radius:8px;outline:none}
+  #ntText{width:100%;min-height:190px;resize:vertical;padding:11px;font-size:13px;line-height:1.5;background:var(--chip-bg);color:var(--text);border:1px solid var(--panel-border);border-radius:8px;outline:none;font-family:inherit}
+  #ntTitle:focus,#ntText:focus{border-color:var(--accent)}
+  .ntRow{display:flex;gap:8px;flex-wrap:wrap}
+  .ntBtn{flex:1;min-width:90px;text-align:center;cursor:pointer;font-size:12.5px;font-weight:600;padding:9px 10px;border-radius:8px;border:1px solid var(--panel-border);background:var(--chip-bg);color:var(--text)}
+  .ntBtn.acc{background:var(--accent);border-color:var(--accent);color:#fff}
+  .ntHint{font-size:11px;color:var(--text-dim);line-height:1.55}
+  #ntList{display:flex;flex-direction:column;gap:6px}
+  .ntItem{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent;font-size:12.5px;color:var(--text)}
+  .ntItem:hover{background:var(--accent-soft);border-color:var(--panel-border)}
+  .ntItem .x{margin-left:auto;color:var(--text-dim);cursor:pointer;padding:0 4px}
+  .ntLabel{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim);font-weight:700;margin-top:6px}
+  `;
+  document.head.appendChild(style);
+
+  const hdr=document.getElementById('header');
+  const btn=document.createElement('button'); btn.className='hbtn'; btn.textContent='Notes';
+  if(hdr){ const sel=document.getElementById('themeSel'); hdr.insertBefore(btn, sel||null); }
+
+  const panel=document.createElement('div'); panel.id='ntPanel';
+  panel.innerHTML=
+    '<div id="ntHead"><span class="t">Notes &amp; Mind-Map</span><button id="ntClose" title="Close">&times;</button></div>'+
+    '<div id="ntBody">'+
+      '<input id="ntTitle" placeholder="Note title…" autocomplete="off"/>'+
+      '<textarea id="ntText" placeholder="Write in markdown. Use [[wikilinks]] to connect ideas — they become real graph links when you save to the vault."></textarea>'+
+      '<div class="ntRow"><button class="ntBtn acc" id="ntBrain">＋ Add to brain</button><button class="ntBtn" id="ntExport">Export .md</button></div>'+
+      '<div class="ntRow"><button class="ntBtn" id="ntSave">Save</button><button class="ntBtn" id="ntNew">New</button></div>'+
+      '<div class="ntHint"><b>Add to brain</b> drops this note in as a live node, linked to whatever’s selected — capture ideas and watch your mind-map grow. <b>Export .md</b> saves it to drop in <code>~/brain</code> so it’s permanent.</div>'+
+      '<div class="ntLabel">Saved notes</div><div id="ntList"></div>'+
+    '</div>';
+  document.body.appendChild(panel);
+
+  const $=id=>document.getElementById(id);
+  const titleEl=$('ntTitle'), textEl=$('ntText');
+  const openP=()=>{panel.classList.add('open');render()}, closeP=()=>panel.classList.remove('open');
+  btn.onclick=()=>panel.classList.contains('open')?closeP():openP();
+  $('ntClose').onclick=closeP;
+
+  function persist(){ const title=titleEl.value.trim(), body=textEl.value;
+    if(!title && !body) return;
+    if(!curId){ curId='n'+Date.now(); notes.unshift({id:curId,title,body,ts:Date.now()}); }
+    else { const n=notes.find(x=>x.id===curId); if(n){n.title=title;n.body=body;n.ts=Date.now();} }
+    saveN(notes); }
+  let t; const autosave=()=>{clearTimeout(t);t=setTimeout(persist,500)};
+  titleEl.addEventListener('input',autosave); textEl.addEventListener('input',autosave);
+  $('ntSave').onclick=()=>{persist();render();flash($('ntSave'))};
+  $('ntNew').onclick=()=>{persist();curId=null;titleEl.value='';textEl.value='';titleEl.focus();render()};
+
+  function loadNote(id){const n=notes.find(x=>x.id===id);if(!n)return;curId=id;titleEl.value=n.title||'';textEl.value=n.body||'';}
+  function delNote(id){notes=notes.filter(x=>x.id!==id);if(curId===id){curId=null;titleEl.value='';textEl.value='';}saveN(notes);render();}
+  function render(){ const list=$('ntList'); if(!list)return;
+    list.innerHTML = notes.length? '' : '<div class="ntHint">No notes yet.</div>';
+    notes.forEach(n=>{ const d=document.createElement('div'); d.className='ntItem';
+      d.innerHTML='<span>'+esc(n.title||'Untitled')+'</span><span class="x" title="Delete">&times;</span>';
+      d.onclick=e=>{ if(e.target.classList.contains('x')) delNote(n.id); else loadNote(n.id); };
+      list.appendChild(d); }); }
+  function flash(b){const o=b.textContent;b.textContent='✓ Saved';setTimeout(()=>b.textContent=o,1000);}
+
+  $('ntBrain').onclick=function(){ persist();
+    if(typeof DATA==='undefined'||!DATA||!Array.isArray(DATA.nodes)){alert('Brain is still loading — try again in a moment.');return;}
+    const title=(titleEl.value||'Untitled note').trim(); const id='note-'+Date.now();
+    DATA.nodes.push({id,label:title,category:'Note',group:'notes',detail:(textEl.value||'').slice(0,300),path:''});
+    let target=null; try{ if(typeof selectedNode!=='undefined'&&selectedNode) target=selectedNode.id; }catch(e){}
+    if(!target) target = DATA.nodes.some(n=>n.id==='hub-Note')?'hub-Note':(DATA.nodes.some(n=>n.id==='brain-core')?'brain-core':null);
+    if(target) DATA.links.push({source:id,target});
+    try{ computeCats(); if(!visibleCategories.has('Note'))visibleCategories.add('Note'); syncCategoryUI(); rebuildData(); const nn=DATA.nodes.find(n=>n.id===id); if(nn)selectNode(nn,true); }catch(e){}
+    flash(this); };
+
+  $('ntExport').onclick=function(){ persist();
+    const title=(titleEl.value||'note').trim(); const desc=(textEl.value||'').replace(/\s+/g,' ').slice(0,140);
+    const md='---\ntype: note\ndescription: '+desc+'\ntags: [note]\n---\n# '+title+'\n\n'+(textEl.value||'')+'\n';
+    const blob=new Blob([md],{type:'text/markdown'}); const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=(title.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')||'note')+'.md';
+    document.body.appendChild(a); a.click(); setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},800); };
+
+  render();
+})();
+</script>
+
+<script>
+/* ===== SKIN PACK — 5 dark command-grade themes (NVIDIA / tactical / NASA / Trek / deep space) ===== */
+(function(){
+  const f=document.createElement('link'); f.rel='stylesheet';
+  f.href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Oxanium:wght@500;700&display=swap';
+  document.head.appendChild(f);
+  const st=document.createElement('style');
+  st.textContent=
+  'body.skinned .hbtn,body.skinned #legend,body.skinned #left,body.skinned #right,body.skinned #search,body.skinned #ntPanel,body.skinned .ntBtn,body.skinned #ntTitle,body.skinned #ntText,body.skinned #brand .logo,body.skinned #detail .d-badge{border-radius:2px !important}'+
+  'body.skinned .sr-dot,body.skinned .legend-row .sr-dot,body.skinned .cat-row .sr-dot{border-radius:1px !important}'+
+  'body.skinned,body.skinned #search,body.skinned #ntText,body.skinned #ntTitle,body.skinned #counts,body.skinned .hbtn,body.skinned .sr-cat,body.skinned .ctl-row,body.skinned .legend-row,body.skinned .cat-row,body.skinned .sr-item,body.skinned .d-link,body.skinned .d-body{font-family:var(--skin-mono) !important;letter-spacing:.01em}'+
+  'body.skinned #brand .title,body.skinned .d-title,body.skinned .ctl-h,body.skinned #legend .lh,body.skinned .d-section-h,body.skinned #ntHead .t{font-family:var(--skin-display) !important;letter-spacing:.07em}';
+  document.head.appendChild(st);
+
+  const SKINS={
+    onyx:{label:'Onyx — NVIDIA', mono:"'JetBrains Mono',monospace", disp:"'Rajdhani',sans-serif",
+      vars:{'--bg':'#06080c','--panel-bg':'rgba(10,13,18,.94)','--panel-border':'rgba(120,200,60,.18)','--text':'#e9f5e0','--text-dim':'#7f8a76','--accent':'#76B900','--accent-soft':'rgba(118,185,0,.14)','--chip-bg':'rgba(255,255,255,.04)'},
+      graphBg:'#06080c', link:'rgba(120,200,80,.18)',
+      ramp:{Source:'#76B900',Personal:'#b6e34d',RB:'#e0a800',Allerion:'#5ad1a0',Concept:'#9fe06a',Project:'#d4e84a',Feedback:'#ff7a59',Reference:'#5fbf7a',System:'#a0ffb0',People:'#39e08a',Note:'#8a948a',_default:'#9aa78a'}},
+    tactical:{label:'Tactical — Military', mono:"'JetBrains Mono',monospace", disp:"'Rajdhani',sans-serif",
+      vars:{'--bg':'#0a0a07','--panel-bg':'rgba(18,17,12,.95)','--panel-border':'rgba(245,183,0,.18)','--text':'#f1e9d2','--text-dim':'#8c8470','--accent':'#F5B700','--accent-soft':'rgba(245,183,0,.13)','--chip-bg':'rgba(255,255,255,.04)'},
+      graphBg:'#0a0a07', link:'rgba(245,183,0,.16)',
+      ramp:{Source:'#f5b700',Personal:'#c9a227',RB:'#e2542d',Allerion:'#8ab04a',Concept:'#d4b04a',Project:'#ffd166',Feedback:'#ff5630',Reference:'#9c8a3a',System:'#e0c060',People:'#8fae3f',Note:'#8c8470',_default:'#9a9270'}},
+    nasa:{label:'Mission Control — NASA', mono:"'Oxanium',monospace", disp:"'Oxanium',sans-serif",
+      vars:{'--bg':'#05080f','--panel-bg':'rgba(9,16,30,.95)','--panel-border':'rgba(77,139,255,.20)','--text':'#dbe7ff','--text-dim':'#6f7e9c','--accent':'#4d8bff','--accent-soft':'rgba(77,139,255,.14)','--chip-bg':'rgba(255,255,255,.04)'},
+      graphBg:'#05080f', link:'rgba(77,139,255,.18)',
+      ramp:{Source:'#4d8bff',Personal:'#7aa7ff',RB:'#ffb000',Allerion:'#34d3c0',Concept:'#9b8cff',Project:'#ffc64d',Feedback:'#ff6b6b',Reference:'#5fa8ff',System:'#b0c4ff',People:'#3fd0a0',Note:'#7081a0',_default:'#8294b8'}},
+    starship:{label:'Starship — Trek', mono:"'JetBrains Mono',monospace", disp:"'Orbitron',sans-serif",
+      vars:{'--bg':'#04060b','--panel-bg':'rgba(9,12,22,.95)','--panel-border':'rgba(77,224,255,.20)','--text':'#e4f6ff','--text-dim':'#6d8294','--accent':'#4DE0FF','--accent-soft':'rgba(77,224,255,.13)','--chip-bg':'rgba(255,255,255,.04)'},
+      graphBg:'#04060b', link:'rgba(77,224,255,.18)',
+      ramp:{Source:'#4DE0FF',Personal:'#ff9f43',RB:'#ffb84d',Allerion:'#5ad1ff',Concept:'#c08bff',Project:'#ffd166',Feedback:'#ff6b81',Reference:'#54c8ff',System:'#a0e8ff',People:'#3fe0c0',Note:'#6d8294',_default:'#86a0b0'}},
+    deepspace:{label:'Deep Space', mono:"'JetBrains Mono',monospace", disp:"'Orbitron',sans-serif",
+      vars:{'--bg':'#000000','--panel-bg':'rgba(8,8,10,.96)','--panel-border':'rgba(120,140,200,.18)','--text':'#eef1f8','--text-dim':'#7a8094','--accent':'#5b8cff','--accent-soft':'rgba(91,140,255,.14)','--chip-bg':'rgba(255,255,255,.04)'},
+      graphBg:'#000000', link:'rgba(150,170,220,.16)',
+      ramp:{Source:'#5b8cff',Personal:'#c0c8e0',RB:'#ff9a3c',Allerion:'#46d6c2',Concept:'#a78bfa',Project:'#ffd166',Feedback:'#ff6b6b',Reference:'#6f9bff',System:'#dfe6ff',People:'#3fd08a',Note:'#7a8094',_default:'#8a90a4'}}
+  };
+
+  function applySkin(key){
+    const s=SKINS[key]; if(!s) return;
+    document.body.classList.add('skinned');
+    const root=document.documentElement;
+    Object.entries(s.vars).forEach(([k,v])=>root.style.setProperty(k,v));
+    root.style.setProperty('--skin-mono',s.mono);
+    root.style.setProperty('--skin-display',s.disp);
+    document.body.style.background=s.vars['--bg'];
+    try{ activeRamp=s.ramp; }catch(e){}
+    try{ if(typeof THEMES!=='undefined'&&THEMES[currentTheme]) THEMES[currentTheme].linkBase=s.link; }catch(e){}
+    try{ if(typeof Graph!=='undefined'&&Graph) Graph.backgroundColor(s.vars['--bg']); }catch(e){}
+    try{ syncCategoryUI(); }catch(e){}
+    try{ rebuildData(); }catch(e){}
+    try{ localStorage.setItem('joeyos_skin',key); }catch(e){}
+  }
+  window.applySkin=applySkin;
+
+  const hdr=document.getElementById('header');
+  if(hdr){
+    const sel=document.createElement('select'); sel.className='hbtn'; sel.id='skinSel'; sel.title='Skin';
+    sel.innerHTML=Object.entries(SKINS).map(([k,v])=>'<option value="'+k+'">'+v.label+'</option>').join('');
+    const ts=document.getElementById('themeSel'); hdr.insertBefore(sel, ts||null); if(ts) ts.style.display='none';
+    sel.onchange=()=>applySkin(sel.value);
+    let saved='onyx'; try{ saved=localStorage.getItem('joeyos_skin')||'onyx'; }catch(e){}
+    sel.value=saved;
+    let n=0; const iv=setInterval(()=>{ if(typeof Graph!=='undefined'&&Graph&&typeof activeRamp!=='undefined'){ applySkin(sel.value); clearInterval(iv); } else if(++n>50) clearInterval(iv); },200);
+  }
+})();
+</script>
+<script>
+/* PWA: register the service worker so _/O.S\_ installs as an app + runs offline. */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
