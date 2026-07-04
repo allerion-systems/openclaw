@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://allerion.io/schema/index.schema.json",
+  "title": "_/allerion.io.vps\\_ index",
+  "type": "object",
+  "required": ["name", "host", "domains", "services", "ports", "jobs", "backups"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "const": "_/allerion.io.vps\\_" },
+    "host": {
+      "type": "object",
+      "required": ["hostname"],
+      "additionalProperties": false,
+      "properties": {
+        "hostname": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string" },
+        "region": { "type": "string" },
+        "os": { "type": "string" },
+        "ipv4": { "type": ["string", "null"] },
+        "ipv6": { "type": ["string", "null"] }
+      }
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "owner", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "domain": { "type": "string", "minLength": 1 },
+          "dns": { "type": "string" },
+          "tls": { "type": "string" },
+          "owner": { "type": "string", "minLength": 1 },
+          "status": { "$ref": "#/$defs/status" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "owner", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "kind": { "type": "string", "minLength": 1 },
+          "runtime": { "type": "string" },
+          "unit": { "type": "string" },
+          "ports": { "type": "array", "items": { "$ref": "#/$defs/port" } },
+          "paths": { "type": "array", "items": { "type": "string" } },
+          "domains": { "type": "array", "items": { "type": "string" } },
+          "owner": { "type": "string", "minLength": 1 },
+          "status": { "$ref": "#/$defs/status" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["port", "protocol", "service", "exposure", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "port": { "$ref": "#/$defs/port" },
+          "protocol": { "enum": ["tcp", "udp"] },
+          "service": { "type": "string", "minLength": 1 },
+          "exposure": { "enum": ["public", "internal", "localhost"] },
+          "status": { "$ref": "#/$defs/status" }
+        }
+      }
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "schedule", "owner", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "schedule": { "type": "string", "minLength": 1 },
+          "command": { "type": "string" },
+          "owner": { "type": "string", "minLength": 1 },
+          "status": { "$ref": "#/$defs/status" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "backups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "destination", "owner", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "source": { "type": "string", "minLength": 1 },
+          "destination": { "type": "string", "minLength": 1 },
+          "schedule": { "type": "string" },
+          "retention": { "type": "string" },
+          "owner": { "type": "string", "minLength": 1 },
+          "status": { "$ref": "#/$defs/status" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "status": { "enum": ["planned", "active", "deprecated", "retired"] }
+  }
+}
