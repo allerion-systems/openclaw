@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>Allerion Chat</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%2314b8a6"/><stop offset="1" stop-color="%237c3aed"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(%23g)"/><text x="16" y="22" font-family="system-ui" font-size="17" font-weight="800" text-anchor="middle" fill="%2304121a">A</text></svg>' />
+<style>
+  :root {
+    --bg0:#050508; --bg1:#0b0b12; --panel:rgba(20,20,32,.72);
+    --border:rgba(255,255,255,.08); --fg:#e9e9f2; --dim:#8b8b9e;
+    --g1:#14b8a6; --g2:#7c3aed; --g3:#0ea5e9;
+    --grad:linear-gradient(135deg,var(--g1),var(--g3) 50%,var(--g2));
+    --radius:16px;
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--fg); background:var(--bg0); overflow:hidden;
+  }
+  /* ambient gradient field */
+  .glow { position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(600px 400px at 12% -8%, rgba(20,184,166,.16), transparent 60%),
+      radial-gradient(700px 500px at 105% 15%, rgba(124,58,237,.15), transparent 60%),
+      radial-gradient(900px 700px at 50% 120%, rgba(14,165,233,.10), transparent 60%),
+      linear-gradient(180deg,var(--bg0),var(--bg1));
+  }
+  .app { position:relative; z-index:1; height:100dvh; display:flex; flex-direction:column; max-width:860px; margin:0 auto; }
+
+  header {
+    display:flex; align-items:center; gap:12px; padding:14px 18px;
+    border-bottom:1px solid var(--border); backdrop-filter:blur(12px);
+  }
+  .mark { width:34px; height:34px; border-radius:10px; background:var(--grad); display:grid; place-items:center; font-weight:800; color:#04121a; }
+  h1 { font-size:1.02rem; margin:0; letter-spacing:.3px; }
+  h1 span { background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--dim); font-size:.78rem; margin-top:1px; }
+  .spacer { flex:1; }
+  .pill { display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--dim);
+    border:1px solid var(--border); border-radius:999px; padding:5px 12px; background:var(--panel); }
+  .dot { width:8px; height:8px; border-radius:50%; background:#f43f5e; transition:background .3s; }
+  .pill.ok .dot { background:#34d399; box-shadow:0 0 8px rgba(52,211,153,.7); }
+  .pill.busy .dot { background:#fbbf24; }
+  .iconbtn { border:1px solid var(--border); background:var(--panel); color:var(--fg);
+    border-radius:10px; padding:6px 11px; cursor:pointer; font-size:.85rem; }
+  .iconbtn:hover { border-color:rgba(255,255,255,.22); }
+
+  #log { flex:1; overflow-y:auto; padding:22px 18px 10px; scroll-behavior:smooth; }
+  .msg { display:flex; margin:10px 0; animation:up .18s ease-out; }
+  @keyframes up { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:none;} }
+  .msg.you { justify-content:flex-end; }
+  .bubble { max-width:78%; padding:11px 15px; border-radius:var(--radius); white-space:pre-wrap; word-wrap:break-word; }
+  .you .bubble { background:var(--grad); color:#04121a; font-weight:500; border-bottom-right-radius:5px; }
+  .bot .bubble { background:var(--panel); border:1px solid var(--border); border-bottom-left-radius:5px; backdrop-filter:blur(8px); }
+  .sys { text-align:center; color:var(--dim); font-size:.78rem; margin:14px 0; }
+  .caret { display:inline-block; width:8px; height:1em; vertical-align:-2px; background:var(--g1); animation:blink .9s steps(1) infinite; border-radius:2px; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  .composer { padding:12px 18px calc(16px + env(safe-area-inset-bottom)); }
+  .inputwrap { position:relative; border-radius:18px; padding:1.5px; background:var(--grad); }
+  .inputwrap.idle { background:var(--border); }
+  .inner { display:flex; align-items:flex-end; gap:8px; background:#0c0c15; border-radius:16.5px; padding:8px 8px 8px 16px; }
+  textarea { flex:1; resize:none; border:0; outline:0; background:transparent; color:var(--fg);
+    font:inherit; max-height:160px; padding:6px 0; }
+  textarea::placeholder { color:#5b5b70; }
+  #send { border:0; border-radius:12px; background:var(--grad); color:#04121a; font-weight:700;
+    padding:10px 18px; cursor:pointer; transition:filter .15s, transform .05s; }
+  #send:disabled { filter:grayscale(.8) brightness(.6); cursor:default; }
+  #send:not(:disabled):active { transform:scale(.97); }
+
+  /* settings drawer */
+  dialog { border:1px solid var(--border); border-radius:18px; background:#0d0d16; color:var(--fg);
+    width:min(430px, 92vw); padding:24px; }
+  dialog::backdrop { background:rgba(3,3,8,.7); backdrop-filter:blur(4px); }
+  dialog h2 { margin:0 0 4px; font-size:1.05rem; }
+  dialog p { color:var(--dim); font-size:.83rem; margin:0 0 16px; }
+  label { display:block; font-size:.8rem; color:var(--dim); margin:12px 0 5px; }
+  dialog input { width:100%; border:1px solid var(--border); background:#08080f; color:var(--fg);
+    border-radius:10px; padding:10px 12px; font:inherit; outline:none; }
+  dialog input:focus { border-color:var(--g1); }
+  .row { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="app">
+  <header>
+    <div class="mark">A</div>
+    <div>
+      <h1><span>Allerion</span> Chat</h1>
+      <div class="sub">your own assistant · built on OpenClaw</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill" id="status"><div class="dot"></div><span id="statustext">disconnected</span></div>
+    <button class="iconbtn" id="gear" title="Settings">⚙︎</button>
+  </header>
+
+  <div id="log"><div class="sys">Configure your gateway in ⚙︎ settings, then say hello.</div></div>
+
+  <div class="composer">
+    <div class="inputwrap idle" id="wrap">
+      <div class="inner">
+        <textarea id="input" rows="1" placeholder="Message your assistant…"></textarea>
+        <button id="send" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="settings">
+  <h2>Gateway connection</h2>
+  <p>Point Allerion Chat at your OpenClaw gateway. Settings are stored in this browser only.</p>
+  <label for="s-url">Gateway URL</label>
+  <input id="s-url" placeholder="wss://jolly.allerion.io" autocomplete="off" spellcheck="false" />
+  <label for="s-token">Gateway token</label>
+  <input id="s-token" type="password" placeholder="paste token" autocomplete="off" />
+  <label for="s-session">Session key (optional)</label>
+  <input id="s-session" placeholder="main" autocomplete="off" spellcheck="false" />
+  <div class="row">
+    <button class="iconbtn" id="s-cancel">Cancel</button>
+    <button class="iconbtn" id="s-save" style="background:var(--grad); color:#04121a; border:0; font-weight:700;">Connect</button>
+  </div>
+</dialog>
+
+<script type="module" src="./chat.js"></script>
+</body>
+</html>
