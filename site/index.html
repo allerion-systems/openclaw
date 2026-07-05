@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Allerion — Download</title>
+  <style>
+    :root { --bg:#0a0a0a; --fg:#e8e8e8; --dim:#9a9a9a; --accent:#4fd1c5; --card:#151515; --border:#2a2a2a; }
+    @media (prefers-color-scheme: light) { :root { --bg:#fafafa; --fg:#111; --dim:#555; --card:#fff; --border:#ddd; } }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.6 system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); }
+    main { max-width:720px; margin:0 auto; padding:48px 20px; }
+    h1 { font-size:2.2rem; margin:0 0 4px; }
+    .tag { color:var(--dim); margin:0 0 32px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin:16px 0; }
+    .card h2 { margin:0 0 8px; font-size:1.1rem; }
+    pre { background:#000; color:#dfe; border:1px solid var(--border); border-radius:8px; padding:12px 14px; overflow-x:auto; font-size:.9rem; }
+    @media (prefers-color-scheme: light) { pre { background:#111; } }
+    a { color:var(--accent); }
+    footer { color:var(--dim); font-size:.85rem; margin-top:40px; border-top:1px solid var(--border); padding-top:16px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Allerion</h1>
+  <p class="tag">Your personal AI assistant — gateway, channels, plugins, and control panel. Install it on your own machine, or use the hosted instance.</p>
+
+  <div class="card">
+    <h2>macOS / Linux / WSL</h2>
+    <p>Requires <a href="https://nodejs.org">Node.js 22.19+</a> and git.</p>
+    <pre>curl -fsSL --proto '=https' --tlsv1.2 https://allerion.io/install.sh | bash</pre>
+  </div>
+
+  <div class="card">
+    <h2>Windows (PowerShell)</h2>
+    <p>Requires <a href="https://nodejs.org">Node.js 22.19+</a> and git.</p>
+    <pre>iwr -useb https://allerion.io/install.ps1 | iex</pre>
+  </div>
+
+  <div class="card">
+    <h2>Hosted</h2>
+    <p>Prefer not to install? Use the hosted control panel at <a href="https://jolly.allerion.io">jolly.allerion.io</a>,
+    or talk to your assistant in <a href="./chat/">Allerion Chat</a>.</p>
+  </div>
+
+  <div class="card">
+    <h2>After installing</h2>
+    <pre>openclaw onboard</pre>
+    <p>Walks you through connecting your model provider and channels.</p>
+  </div>
+
+  <footer>
+    Allerion is built on <a href="https://github.com/openclaw/openclaw">OpenClaw</a> (MIT license).
+    Source: <a href="https://github.com/allerion-systems/openclaw">allerion-systems/openclaw</a> ·
+    License &amp; third-party notices ship with every install.
+  </footer>
+</main>
+</body>
+</html>
