@@ -1,0 +1,38 @@
+name: Sync fork with upstream
+
+# Keeps allerion-systems/openclaw `main` tracking openclaw/openclaw `main`.
+# Fast-forward only: if fork main ever diverges (local commits), the job fails
+# loudly instead of merging or force-pushing — resolve manually, then re-run.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.repository == 'allerion-systems/openclaw'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fast-forward main from upstream
+        run: |
+          git remote add upstream https://github.com/openclaw/openclaw.git
+          git fetch upstream main
+          BEFORE=$(git rev-parse HEAD)
+          git merge --ff-only upstream/main
+          AFTER=$(git rev-parse HEAD)
+          if [ "$BEFORE" = "$AFTER" ]; then
+            echo "Already up to date with upstream/main."
+          else
+            git push origin main
+            echo "Synced $BEFORE..$AFTER from upstream/main."
+          fi
