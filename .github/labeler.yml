@@ -263,6 +263,7 @@
   - changed-files:
       - any-glob-to-any-file:
           - "src/agents/**"
+          - "tools/github-graph-pilot/**"
 
 "security":
   - changed-files:

@@ -17,6 +17,7 @@ __pycache__/
 *.tsbuildinfo
 .pnpm-store
 .worktrees/
+tools/github-graph-pilot/.venv/
 .DS_Store
 **/.DS_Store
 ui/src/ui/__screenshots__/

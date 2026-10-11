@@ -1,0 +1,13 @@
+[project]
+name = "openclaw-github-graph-pilot"
+version = "0.1.0"
+description = "Opt-in one-repository GitHub-to-Graphiti ingestion pilot"
+requires-python = ">=3.10"
+dependencies = [
+  "graphiti-core==0.30.2",
+  "httpx==0.28.1",
+  "meltanolabs-tap-github==1.29.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
